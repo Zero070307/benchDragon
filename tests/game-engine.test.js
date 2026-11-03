@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { MAP_LAYOUT, parseMap, isRoad } from '../js/map.js';
+import { GAME_CONFIG } from '../js/config.js';
 import {
   DIRECTIONS,
   createGame,
@@ -302,6 +303,19 @@ test('challenge ends at exactly zero milliseconds', () => {
 
   advanceGame(game, 60_000);
 
+  assert.equal(game.remainingMs, 0);
+  assert.equal(game.phase, 'ended');
+});
+
+test('a 30-second challenge ends at the selected duration', () => {
+  const game = createRunningGame(38, {
+    config: { ...GAME_CONFIG, durationMs: 30_000 }
+  });
+
+  assert.equal(game.remainingMs, 30_000);
+  advanceGame(game, 29_999);
+  assert.equal(game.phase, 'running');
+  advanceGame(game, 1);
   assert.equal(game.remainingMs, 0);
   assert.equal(game.phase, 'ended');
 });

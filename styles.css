@@ -125,6 +125,31 @@ h2 {
   flex-wrap: wrap;
 }
 
+.duration-picker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0 auto 26px;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.duration-picker button {
+  min-width: 120px;
+  min-height: 54px;
+  border: 4px solid var(--red-dark);
+  background: #efd08a;
+  color: #57351f;
+  box-shadow: 0 5px 0 var(--red-dark);
+}
+
+.duration-picker button[aria-pressed="true"] {
+  background: var(--red);
+  color: #fff4dc;
+}
+
 .primary-button,
 .secondary-button {
   min-width: 190px;

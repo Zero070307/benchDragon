@@ -28,6 +28,13 @@ test('index provides every required screen and game control', async () => {
   }
 });
 
+test('home screen offers 30 and 60 second challenge choices', async () => {
+  const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /data-duration="30"/);
+  assert.match(html, /data-duration="60"/);
+  assert.match(html, /data-duration="60"[^>]*aria-pressed="true"/);
+});
+
 test('renderer uses crisp pixels and contains every approved scene drawer', async () => {
   const source = await readFile(new URL('../js/renderer.js', import.meta.url), 'utf8');
 

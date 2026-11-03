@@ -33,8 +33,10 @@ const timeValue = document.getElementById('time-value');
 const countdownValue = document.getElementById('countdown-value');
 const pauseButton = document.getElementById('pause-button');
 const pauseOverlay = document.getElementById('pause-overlay');
+const durationButtons = [...document.querySelectorAll('[data-duration]')];
 
 let game = null;
+let selectedDurationMs = GAME_CONFIG.durationMs;
 let countdownToken = 0;
 let resultShown = false;
 let lastFrameTime = performance.now();
@@ -93,7 +95,8 @@ function buildGame(seed) {
     map,
     seed,
     spawn,
-    direction: DIRECTIONS.RIGHT
+    direction: DIRECTIONS.RIGHT,
+    config: { ...GAME_CONFIG, durationMs: selectedDurationMs }
   });
   populateInitialItems(nextGame);
   return nextGame;
@@ -167,6 +170,15 @@ bindInput({
     queueDirection(game, directionsByName[name]);
   }
 });
+
+for (const button of durationButtons) {
+  button.addEventListener('click', () => {
+    selectedDurationMs = Number(button.dataset.duration) * 1_000;
+    for (const option of durationButtons) {
+      option.setAttribute('aria-pressed', String(option === button));
+    }
+  });
+}
 
 document.getElementById('start-button').addEventListener('click', startNewChallenge);
 document.getElementById('rules-button').addEventListener('click', () => screens.show('rules'));
