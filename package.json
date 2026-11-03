@@ -1,0 +1,10 @@
+{
+  "name": "bench-dragon-demo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-bundle.mjs",
+    "test": "npm run build && node --test tests/*.test.js"
+  }
+}

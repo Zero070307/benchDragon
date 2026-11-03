@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#8f2429">
+  <title>板凳龙大作战</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main id="app">
+    <section id="home-screen" class="screen home-screen">
+      <div class="pixel-cloud cloud-one" aria-hidden="true"></div>
+      <div class="pixel-cloud cloud-two" aria-hidden="true"></div>
+      <div class="title-panel">
+        <p class="eyebrow">乡村像素挑战</p>
+        <h1>板凳龙大作战</h1>
+        <p class="subtitle">60 秒乡村舞龙挑战</p>
+        <div class="pixel-dragon-logo" aria-hidden="true">
+          <span class="logo-tail"></span>
+          <span class="logo-bench"></span>
+          <span class="logo-bench"></span>
+          <span class="logo-bench"></span>
+          <span class="logo-head"></span>
+        </div>
+        <div class="home-actions">
+          <button id="start-button" class="primary-button" type="button">开始挑战</button>
+          <button id="rules-button" class="secondary-button" type="button">查看规则</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="rules-screen" class="screen centered-screen" hidden>
+      <article class="paper-panel rules-panel">
+        <p class="eyebrow">玩法说明</p>
+        <h2>沿着米色村道前进</h2>
+        <ol class="rules-list">
+          <li>板凳龙会自动向前移动。</li>
+          <li>点击大方向键改变前进方向。</li>
+          <li>普通板凳 <strong>+1 节</strong>。</li>
+          <li>龙珠 <strong>+2 节</strong>。</li>
+          <li>碰到绿色场景会停顿 0.5 秒。</li>
+          <li>在 60 秒内尽量让板凳龙变长。</li>
+        </ol>
+        <button id="rules-back-button" class="primary-button" type="button">明白了</button>
+      </article>
+    </section>
+
+    <section id="countdown-screen" class="screen countdown-screen" hidden>
+      <p>准备出发</p>
+      <strong id="countdown-value" aria-live="assertive">3</strong>
+    </section>
+
+    <section id="game-screen" class="screen game-screen" hidden>
+      <header class="hud">
+        <div class="game-brand">板凳龙大作战</div>
+        <div class="hud-stat"><span>长度</span><strong id="length-value">3 节</strong></div>
+        <div class="hud-stat"><span>碰撞</span><strong id="collision-value">0</strong></div>
+        <div class="hud-stat"><span>剩余</span><strong id="time-value">01:00</strong></div>
+        <nav class="teacher-controls" aria-label="教师控制">
+          <button id="pause-button" type="button">暂停</button>
+          <button id="restart-button" type="button">重开</button>
+          <button id="home-button" type="button">返回首页</button>
+        </nav>
+      </header>
+
+      <div class="canvas-frame">
+        <canvas id="game-canvas" width="784" height="392" aria-label="乡村道路迷宫"></canvas>
+        <div id="pause-overlay" class="pause-overlay" hidden>
+          <strong>已暂停</strong>
+          <span>点击“继续”恢复挑战</span>
+        </div>
+      </div>
+
+      <div class="control-strip">
+        <p class="touch-hint">只在米色村道上前进</p>
+        <div class="direction-pad" aria-label="方向控制">
+          <button data-direction="up" class="direction up" type="button" aria-label="向上">↑</button>
+          <button data-direction="left" class="direction left" type="button" aria-label="向左">←</button>
+          <button data-direction="right" class="direction right" type="button" aria-label="向右">→</button>
+          <button data-direction="down" class="direction down" type="button" aria-label="向下">↓</button>
+        </div>
+        <div class="item-legend" aria-label="道具说明">
+          <span><i class="bench-icon" aria-hidden="true"></i>板凳 +1</span>
+          <span><i class="pearl-icon" aria-hidden="true"></i>龙珠 +2</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="result-screen" class="screen centered-screen result-screen" hidden>
+      <article class="paper-panel result-panel">
+        <p class="eyebrow">挑战完成</p>
+        <h2>板凳龙收队啦！</h2>
+        <div class="result-grid">
+          <div><span>最终长度</span><strong id="result-length">3 节</strong></div>
+          <div><span>碰撞次数</span><strong id="result-collisions">0 次</strong></div>
+        </div>
+        <div class="result-actions">
+          <button id="play-again-button" class="primary-button" type="button">再玩一次</button>
+          <button id="result-home-button" class="secondary-button" type="button">返回首页</button>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script defer src="js/game.bundle.js"></script>
+</body>
+</html>
