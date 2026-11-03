@@ -7,7 +7,7 @@ export const GAME_CONFIG = Object.freeze({
   normalBenchCount: 5,
   normalBenchReward: 1,
   pearlReward: 2,
-  moveIntervalMs: 180,
+  moveIntervalMs: 100,
   collisionStunMs: 500,
   recoveryStepMs: 70,
   pearlIntervalMs: 12_000,

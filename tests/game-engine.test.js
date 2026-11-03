@@ -96,11 +96,13 @@ test('turn buffered during stun is applied when stun ends', () => {
   assert.deepEqual(game.segments[0], { x: 1, y: 2 });
 });
 
-test('a queued turn is committed within 180 milliseconds', () => {
+test('a queued turn is committed within 100 milliseconds', () => {
   const game = createRunningGame(81);
 
   queueDirection(game, DIRECTIONS.UP);
-  advanceGame(game, 180);
+  advanceGame(game, 99);
+  assert.deepEqual(game.segments[0], SPAWN);
+  advanceGame(game, 1);
 
   assert.deepEqual(game.segments[0], { x: 4, y: 2 });
 });
