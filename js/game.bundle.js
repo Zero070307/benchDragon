@@ -13,8 +13,6 @@ const GAME_CONFIG = Object.freeze({
   normalBenchReward: 1,
   pearlReward: 2,
   moveIntervalMs: 100,
-  collisionStunMs: 500,
-  recoveryStepMs: 70,
   pearlIntervalMs: 12_000,
   pearlLifetimeMs: 7_000,
   finalCountdownMs: 10_000,
@@ -176,47 +174,6 @@ const sameCell = (a, b) => a.x === b.x && a.y === b.y;
 const cellKey = (cell) => `${cell.x},${cell.y}`;
 const manhattan = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 const opposite = (a, b) => a.x + b.x === 0 && a.y + b.y === 0;
-const DIRECTION_ORDER = Object.freeze([
-  DIRECTIONS.UP,
-  DIRECTIONS.RIGHT,
-  DIRECTIONS.DOWN,
-  DIRECTIONS.LEFT
-]);
-
-function cloneSegments(segments) {
-  return segments.map((segment) => ({ ...segment }));
-}
-
-function pathSnapshot(game) {
-  return {
-    head: { ...game.segments[0] },
-    segments: cloneSegments(game.segments),
-    direction: game.direction
-  };
-}
-
-function roadNeighbors(map, cell) {
-  return DIRECTION_ORDER
-    .map((direction) => ({
-      direction,
-      cell: {
-        x: cell.x + direction.x,
-        y: cell.y + direction.y
-      }
-    }))
-    .filter((entry) => isRoad(map, entry.cell.x, entry.cell.y));
-}
-
-function expandedSegments(segments, benchCount) {
-  const expanded = cloneSegments(segments).slice(0, benchCount + 1);
-  const tail = expanded.at(-1);
-
-  while (expanded.length < benchCount + 1 && tail) {
-    expanded.push({ ...tail });
-  }
-
-  return expanded;
-}
 
 function createGame({
   map,
@@ -246,19 +203,16 @@ function createGame({
     previousSegments: segments.map((segment) => ({ ...segment })),
     benchCount: config.initialBenchCount,
     collisionCount: 0,
-    stunRemainingMs: 0,
+    blockedByWall: false,
+    endReason: null,
     remainingMs: config.durationMs,
     elapsedMs: 0,
     moveAccumulatorMs: 0,
     normalBenches: [],
     pearl: null,
-    nextPearlAtMs: config.pearlIntervalMs,
-    pathHistory: [],
-    recoveryTarget: null,
-    recovery: null
+    nextPearlAtMs: config.pearlIntervalMs
   };
 
-  game.pathHistory.push(pathSnapshot(game));
   return game;
 }
 
@@ -266,9 +220,8 @@ function queueDirection(game, requested) {
   if (
     !requested ||
     game.pendingDirection ||
-    game.recoveryTarget ||
-    game.recovery ||
-    opposite(game.direction, requested)
+    (game.blockedByWall && requested === game.direction) ||
+    (!game.blockedByWall && opposite(game.direction, requested))
   ) {
     return false;
   }
@@ -342,126 +295,15 @@ function collectAtHead(game) {
   }
 }
 
-function nearestJunctionIndex(game) {
-  for (let index = game.pathHistory.length - 1; index >= 0; index -= 1) {
-    if (roadNeighbors(game.map, game.pathHistory[index].head).length >= 3) {
-      return index;
-    }
-  }
-
-  return 0;
-}
-
-function distanceToTargets(map, start, targetKeys) {
-  if (targetKeys.size === 0) {
-    return 0;
-  }
-
-  const queue = [{ cell: start, distance: 0 }];
-  const seen = new Set([cellKey(start)]);
-
-  for (let index = 0; index < queue.length; index += 1) {
-    const current = queue[index];
-
-    if (targetKeys.has(cellKey(current.cell))) {
-      return current.distance;
-    }
-
-    for (const neighbor of roadNeighbors(map, current.cell)) {
-      const key = cellKey(neighbor.cell);
-
-      if (!seen.has(key)) {
-        seen.add(key);
-        queue.push({ cell: neighbor.cell, distance: current.distance + 1 });
-      }
-    }
-  }
-
-  return Number.POSITIVE_INFINITY;
-}
-
-function chooseRecoveryDirection(game, targetIndex, restoredSegments) {
-  const junction = game.pathHistory[targetIndex].head;
-  const deadEndBranch = game.pathHistory[targetIndex + 1]?.head ?? null;
-  const occupiedBody = new Set(restoredSegments.slice(1).map(cellKey));
-  let candidates = roadNeighbors(game.map, junction).filter((entry) =>
-    !occupiedBody.has(cellKey(entry.cell))
-  );
-
-  if (deadEndBranch && candidates.length > 1) {
-    const alternatives = candidates.filter((entry) => !sameCell(entry.cell, deadEndBranch));
-    if (alternatives.length > 0) {
-      candidates = alternatives;
-    }
-  }
-
-  if (candidates.length === 0) {
-    return DIRECTIONS.RIGHT;
-  }
-
-  const targetKeys = new Set([
-    ...game.normalBenches.map(cellKey),
-    ...(game.pearl ? [cellKey(game.pearl)] : [])
-  ]);
-
-  return candidates
-    .map((candidate) => ({
-      ...candidate,
-      distance: distanceToTargets(game.map, candidate.cell, targetKeys)
-    }))
-    .sort((a, b) => a.distance - b.distance)[0].direction;
-}
-
-function beginRecovery(game) {
-  const targetIndex = game.recoveryTarget.historyIndex;
-  const frames = [];
-
-  for (let index = game.pathHistory.length - 1; index >= targetIndex; index -= 1) {
-    frames.push(expandedSegments(game.pathHistory[index].segments, game.benchCount));
-  }
-
-  game.pendingDirection = null;
-  game.moveAccumulatorMs = 0;
-  game.recovery = {
-    targetIndex,
-    frames,
-    elapsedMs: 0,
-    durationMs: Math.max(
-      game.config.recoveryStepMs,
-      (frames.length - 1) * game.config.recoveryStepMs
-    )
-  };
-}
-
-function completeRecovery(game) {
-  const { targetIndex, frames } = game.recovery;
-  const restoredSegments = cloneSegments(frames.at(-1));
-  const direction = chooseRecoveryDirection(game, targetIndex, restoredSegments);
-
-  game.segments = restoredSegments;
-  game.previousSegments = cloneSegments(restoredSegments);
-  game.direction = direction;
-  game.pendingDirection = null;
-  game.moveAccumulatorMs = 0;
-  game.pathHistory = game.pathHistory.slice(0, targetIndex + 1);
-  game.pathHistory[targetIndex] = pathSnapshot(game);
-  game.recovery = null;
-  game.recoveryTarget = null;
-}
-
 function stepMovement(game) {
-  if (
-    game.phase !== 'running' ||
-    game.stunRemainingMs > 0 ||
-    game.recoveryTarget ||
-    game.recovery
-  ) {
+  if (game.phase !== 'running' || (game.blockedByWall && !game.pendingDirection)) {
     return false;
   }
 
   if (game.pendingDirection) {
     game.direction = game.pendingDirection;
     game.pendingDirection = null;
+    game.blockedByWall = false;
   }
 
   game.previousSegments = game.segments.map((segment) => ({ ...segment }));
@@ -474,17 +316,20 @@ function stepMovement(game) {
   const hitsScene = !isRoad(game.map, next.x, next.y);
   const hitsSelf = game.segments.slice(1).some((segment) => sameCell(segment, next));
 
-  if (hitsScene || hitsSelf) {
+  if (hitsScene) {
     game.collisionCount += 1;
-    game.stunRemainingMs = game.config.collisionStunMs;
-
-    if (hitsScene && roadNeighbors(game.map, head).length <= 1) {
-      game.recoveryTarget = { historyIndex: nearestJunctionIndex(game) };
-    }
-
+    game.blockedByWall = true;
     return false;
   }
 
+  if (hitsSelf) {
+    game.collisionCount += 1;
+    game.phase = 'ended';
+    game.endReason = 'self';
+    return false;
+  }
+
+  game.blockedByWall = false;
   game.segments.unshift(next);
 
   if (game.segments.length - 1 > game.benchCount) {
@@ -492,7 +337,6 @@ function stepMovement(game) {
   }
 
   collectAtHead(game);
-  game.pathHistory.push(pathSnapshot(game));
   return true;
 }
 
@@ -520,13 +364,7 @@ function expireOrSpawnPearl(game) {
 function nextTimeSlice(game, availableMs) {
   const candidates = [availableMs, game.remainingMs];
 
-  if (game.recovery) {
-    candidates.push(game.recovery.durationMs - game.recovery.elapsedMs);
-  } else if (game.stunRemainingMs > 0) {
-    candidates.push(game.stunRemainingMs);
-  } else {
-    candidates.push(game.config.moveIntervalMs - game.moveAccumulatorMs);
-  }
+  candidates.push(game.config.moveIntervalMs - game.moveAccumulatorMs);
 
   if (game.pearl) {
     candidates.push(game.pearl.remainingMs);
@@ -561,37 +399,11 @@ function advanceGame(game, deltaMs) {
       game.pearl.remainingMs -= sliceMs;
     }
 
-    if (game.recovery) {
-      game.recovery.elapsedMs += sliceMs;
-    } else if (game.stunRemainingMs > 0) {
-      game.stunRemainingMs = Math.max(0, game.stunRemainingMs - sliceMs);
-    } else {
-      game.moveAccumulatorMs += sliceMs;
-    }
+    game.moveAccumulatorMs += sliceMs;
 
     expireOrSpawnPearl(game);
 
-    if (
-      game.stunRemainingMs === 0 &&
-      game.recoveryTarget &&
-      !game.recovery
-    ) {
-      beginRecovery(game);
-    }
-
-    if (
-      game.recovery &&
-      game.recovery.elapsedMs >= game.recovery.durationMs
-    ) {
-      completeRecovery(game);
-    }
-
-    if (
-      !game.recoveryTarget &&
-      !game.recovery &&
-      game.stunRemainingMs === 0 &&
-      game.moveAccumulatorMs >= game.config.moveIntervalMs
-    ) {
+    if (game.moveAccumulatorMs >= game.config.moveIntervalMs) {
       game.moveAccumulatorMs -= game.config.moveIntervalMs;
       stepMovement(game);
     }
@@ -599,6 +411,7 @@ function advanceGame(game, deltaMs) {
     if (game.remainingMs <= 0) {
       game.remainingMs = 0;
       game.phase = 'ended';
+      game.endReason ??= 'time';
     }
   }
 }
@@ -644,26 +457,6 @@ function interpolateSegments(previousSegments, currentSegments, progress) {
       y: previous.y + (current.y - previous.y) * amount
     };
   });
-}
-
-function interpolateRecoveryFrames(frames, progress) {
-  if (frames.length === 0) {
-    return [];
-  }
-
-  if (frames.length === 1) {
-    return frames[0].map((segment) => ({ ...segment }));
-  }
-
-  const amount = Math.max(0, Math.min(1, progress));
-  const scaled = amount * (frames.length - 1);
-  const startIndex = Math.min(Math.floor(scaled), frames.length - 2);
-  const localProgress = amount === 1 ? 1 : scaled - startIndex;
-  return interpolateSegments(
-    frames[startIndex],
-    frames[startIndex + 1],
-    localProgress
-  );
 }
 
 const COLORS = Object.freeze({
@@ -827,8 +620,7 @@ function drawHead(ctx, game) {
   ctx.save();
   ctx.translate(centerX, centerY);
   ctx.rotate(angle);
-  const flash = game.stunRemainingMs > 0 && Math.floor(game.stunRemainingMs / 100) % 2 === 0;
-  pixelRect(ctx, -9, -9, 18, 18, flash ? '#f36c5e' : COLORS.red);
+  pixelRect(ctx, -9, -9, 18, 18, COLORS.red);
   pixelRect(ctx, 5, -6, 5, 12, COLORS.redDark);
   pixelRect(ctx, -5, -13, 4, 5, COLORS.gold);
   pixelRect(ctx, 3, -13, 4, 5, COLORS.gold);
@@ -899,18 +691,13 @@ function createRenderer(canvas) {
       drawPearl(context, game.pearl);
     }
 
-    const visualSegments = game.recovery
-      ? interpolateRecoveryFrames(
-        game.recovery.frames,
-        game.recovery.elapsedMs / game.recovery.durationMs
-      )
-      : interpolateSegments(
-        game.previousSegments ?? game.segments,
-        game.segments,
-        game.phase === 'ended'
-          ? 1
-          : game.moveAccumulatorMs / game.config.moveIntervalMs
-      );
+    const visualSegments = interpolateSegments(
+      game.previousSegments ?? game.segments,
+      game.segments,
+      game.phase === 'ended' || game.blockedByWall
+        ? 1
+        : game.moveAccumulatorMs / game.config.moveIntervalMs
+    );
     drawDragon(context, { ...game, segments: visualSegments });
   }
 
@@ -982,7 +769,10 @@ function createScreens(document) {
     }
   }
 
-  function showResult({ benchCount, collisionCount }) {
+  function showResult({ benchCount, collisionCount, endReason }) {
+    document.getElementById('result-title').textContent = endReason === 'self'
+      ? '咬到自己，挑战结束！'
+      : '板凳龙收队啦！';
     document.getElementById('result-length').textContent = `${benchCount} 节`;
     document.getElementById('result-collisions').textContent = `${collisionCount} 次`;
     show('result');
@@ -1009,6 +799,7 @@ const screens = createScreens(document);
 const renderer = createRenderer(canvas);
 const lengthValue = document.getElementById('length-value');
 const collisionValue = document.getElementById('collision-value');
+const touchHint = document.getElementById('touch-hint');
 const timeValue = document.getElementById('time-value');
 const countdownValue = document.getElementById('countdown-value');
 const pauseButton = document.getElementById('pause-button');
@@ -1042,6 +833,9 @@ function updateHud() {
   if (!game) return;
   lengthValue.textContent = `${game.benchCount} 节`;
   collisionValue.textContent = String(game.collisionCount);
+  touchHint.textContent = game.blockedByWall
+    ? '撞墙了，请改变方向'
+    : '只在米色村道上前进';
   timeValue.textContent = formatTime(game.remainingMs);
   timeValue.classList.toggle(
     'is-final-countdown',

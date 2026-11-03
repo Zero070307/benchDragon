@@ -29,6 +29,7 @@ const screens = createScreens(document);
 const renderer = createRenderer(canvas);
 const lengthValue = document.getElementById('length-value');
 const collisionValue = document.getElementById('collision-value');
+const touchHint = document.getElementById('touch-hint');
 const timeValue = document.getElementById('time-value');
 const countdownValue = document.getElementById('countdown-value');
 const pauseButton = document.getElementById('pause-button');
@@ -62,6 +63,9 @@ function updateHud() {
   if (!game) return;
   lengthValue.textContent = `${game.benchCount} 节`;
   collisionValue.textContent = String(game.collisionCount);
+  touchHint.textContent = game.blockedByWall
+    ? '撞墙了，请改变方向'
+    : '只在米色村道上前进';
   timeValue.textContent = formatTime(game.remainingMs);
   timeValue.classList.toggle(
     'is-final-countdown',

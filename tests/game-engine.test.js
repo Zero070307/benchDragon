@@ -61,7 +61,7 @@ test('only one legal turn is buffered per movement step', () => {
   assert.deepEqual(game.segments[0], { x: 4, y: 2 });
 });
 
-test('scene collision keeps position and starts one stun', () => {
+test('wall contact waits in place without repeated collisions while time continues', () => {
   const game = createGame({
     map: OPEN_MAP,
     seed: 7,
@@ -72,15 +72,17 @@ test('scene collision keeps position and starts one stun', () => {
   const before = structuredClone(game.segments);
 
   stepMovement(game);
-  stepMovement(game);
+  advanceGame(game, 1_000);
 
   assert.deepEqual(game.segments, before);
   assert.deepEqual(game.previousSegments, before);
   assert.equal(game.collisionCount, 1);
-  assert.equal(game.stunRemainingMs, 500);
+  assert.equal(game.blockedByWall, true);
+  assert.equal(game.phase, 'running');
+  assert.equal(game.remainingMs, game.config.durationMs - 1_000);
 });
 
-test('turn buffered during stun is applied when stun ends', () => {
+test('a legal turn releases a wall-blocked dragon on the next step', () => {
   const game = createGame({
     map: OPEN_MAP,
     seed: 8,
@@ -91,10 +93,10 @@ test('turn buffered during stun is applied when stun ends', () => {
 
   stepMovement(game);
   assert.equal(queueDirection(game, DIRECTIONS.UP), true);
-  advanceGame(game, 500);
-  stepMovement(game);
+  advanceGame(game, game.config.moveIntervalMs);
 
   assert.deepEqual(game.segments[0], { x: 1, y: 2 });
+  assert.equal(game.blockedByWall, false);
 });
 
 test('a queued turn is committed within 100 milliseconds', () => {
@@ -108,7 +110,7 @@ test('a queued turn is committed within 100 milliseconds', () => {
   assert.deepEqual(game.segments[0], { x: 4, y: 2 });
 });
 
-test('dead-end collision rewinds to the nearest junction and aims at the nearest item', () => {
+test('a dead end stays blocked until the player chooses a direction', () => {
   const deadEndMap = parseMap([
     'GGGGGGG',
     'G.....G',
@@ -123,39 +125,24 @@ test('dead-end collision rewinds to the nearest junction and aims at the nearest
     direction: DIRECTIONS.DOWN,
     config: {
       ...createRunningGame().config,
-      initialBenchCount: 0,
-      recoveryStepMs: 70
+      initialBenchCount: 2
     }
   });
   game.phase = 'running';
-  game.normalBenches = [{ x: 5, y: 1 }];
-  const initialRemainingMs = game.remainingMs;
-
   stepMovement(game);
   stepMovement(game);
   stepMovement(game);
-
   assert.equal(game.collisionCount, 1);
-  assert.ok(game.recoveryTarget);
-
-  advanceGame(game, 500);
-  assert.ok(game.recovery);
-  const recoveryDurationMs = game.recovery.durationMs;
-
-  advanceGame(game, recoveryDurationMs);
-
-  assert.equal(game.recovery, null);
-  assert.equal(game.recoveryTarget, null);
-  assert.deepEqual(game.segments[0], { x: 3, y: 1 });
-  assert.equal(game.direction, DIRECTIONS.RIGHT);
-  assert.deepEqual(game.normalBenches, [{ x: 5, y: 1 }]);
-  assert.equal(
-    game.remainingMs,
-    initialRemainingMs - 500 - recoveryDurationMs
-  );
+  advanceGame(game, 1_000);
+  assert.equal(game.blockedByWall, true);
+  assert.deepEqual(game.segments[0], { x: 3, y: 3 });
+  assert.equal(queueDirection(game, DIRECTIONS.UP), true);
+  advanceGame(game, game.config.moveIntervalMs);
+  assert.equal(game.phase, 'ended');
+  assert.equal(game.endReason, 'self');
 });
 
-test('moving into the realized body triggers collision', () => {
+test('biting the body ends the challenge early', () => {
   const game = createRunningGame();
   game.segments = [
     { x: 5, y: 3 },
@@ -170,6 +157,9 @@ test('moving into the realized body triggers collision', () => {
 
   assert.equal(game.collisionCount, 1);
   assert.deepEqual(game.segments[0], { x: 5, y: 3 });
+  assert.equal(game.phase, 'ended');
+  assert.equal(game.endReason, 'self');
+  assert.equal(game.remainingMs, game.config.durationMs);
 });
 
 test('initial items use only road cells and avoid the dragon', () => {
@@ -266,8 +256,7 @@ test('pause freezes movement and every game timer', () => {
     segments: game.segments,
     remainingMs: game.remainingMs,
     elapsedMs: game.elapsedMs,
-    pearl: game.pearl,
-    stunRemainingMs: game.stunRemainingMs
+    pearl: game.pearl
   });
 
   advanceGame(game, 8_000);
@@ -276,8 +265,7 @@ test('pause freezes movement and every game timer', () => {
     segments: game.segments,
     remainingMs: game.remainingMs,
     elapsedMs: game.elapsedMs,
-    pearl: game.pearl,
-    stunRemainingMs: game.stunRemainingMs
+    pearl: game.pearl
   }, snapshot);
   resumeGame(game);
   assert.equal(game.phase, 'running');

@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   interpolateSegments,
-  interpolateRecoveryFrames,
   createRenderer
 } from '../js/renderer.js';
 
@@ -45,18 +44,6 @@ test('new growth starts from the previous tail instead of appearing ahead', () =
   ]);
 });
 
-test('recovery animation follows each recorded path frame', () => {
-  const frames = [
-    [{ x: 3, y: 3 }],
-    [{ x: 3, y: 2 }],
-    [{ x: 3, y: 1 }]
-  ];
-
-  assert.deepEqual(interpolateRecoveryFrames(frames, 0.25), [{ x: 3, y: 2.5 }]);
-  assert.deepEqual(interpolateRecoveryFrames(frames, 0.75), [{ x: 3, y: 1.5 }]);
-  assert.deepEqual(interpolateRecoveryFrames(frames, 1), [{ x: 3, y: 1 }]);
-});
-
 test('renderer builds the static map layer only once for repeated frames', () => {
   const noOp = () => {};
   const mainContext = {
@@ -95,7 +82,6 @@ test('renderer builds the static map layer only once for repeated frames', () =>
     config: { moveIntervalMs: 220 },
     phase: 'running',
     moveAccumulatorMs: 50,
-    stunRemainingMs: 0,
     direction: { x: 1, y: 0 },
     previousSegments: [{ x: 0, y: 0 }],
     segments: [{ x: 0, y: 0 }],

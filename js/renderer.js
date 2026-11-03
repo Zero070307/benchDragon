@@ -15,26 +15,6 @@ export function interpolateSegments(previousSegments, currentSegments, progress)
   });
 }
 
-export function interpolateRecoveryFrames(frames, progress) {
-  if (frames.length === 0) {
-    return [];
-  }
-
-  if (frames.length === 1) {
-    return frames[0].map((segment) => ({ ...segment }));
-  }
-
-  const amount = Math.max(0, Math.min(1, progress));
-  const scaled = amount * (frames.length - 1);
-  const startIndex = Math.min(Math.floor(scaled), frames.length - 2);
-  const localProgress = amount === 1 ? 1 : scaled - startIndex;
-  return interpolateSegments(
-    frames[startIndex],
-    frames[startIndex + 1],
-    localProgress
-  );
-}
-
 const COLORS = Object.freeze({
   road: '#c8ad77',
   roadLight: '#ddc694',
@@ -196,8 +176,7 @@ function drawHead(ctx, game) {
   ctx.save();
   ctx.translate(centerX, centerY);
   ctx.rotate(angle);
-  const flash = game.stunRemainingMs > 0 && Math.floor(game.stunRemainingMs / 100) % 2 === 0;
-  pixelRect(ctx, -9, -9, 18, 18, flash ? '#f36c5e' : COLORS.red);
+  pixelRect(ctx, -9, -9, 18, 18, COLORS.red);
   pixelRect(ctx, 5, -6, 5, 12, COLORS.redDark);
   pixelRect(ctx, -5, -13, 4, 5, COLORS.gold);
   pixelRect(ctx, 3, -13, 4, 5, COLORS.gold);
@@ -268,18 +247,13 @@ export function createRenderer(canvas) {
       drawPearl(context, game.pearl);
     }
 
-    const visualSegments = game.recovery
-      ? interpolateRecoveryFrames(
-        game.recovery.frames,
-        game.recovery.elapsedMs / game.recovery.durationMs
-      )
-      : interpolateSegments(
-        game.previousSegments ?? game.segments,
-        game.segments,
-        game.phase === 'ended'
-          ? 1
-          : game.moveAccumulatorMs / game.config.moveIntervalMs
-      );
+    const visualSegments = interpolateSegments(
+      game.previousSegments ?? game.segments,
+      game.segments,
+      game.phase === 'ended' || game.blockedByWall
+        ? 1
+        : game.moveAccumulatorMs / game.config.moveIntervalMs
+    );
     drawDragon(context, { ...game, segments: visualSegments });
   }
 
